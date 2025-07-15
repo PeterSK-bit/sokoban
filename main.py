@@ -33,7 +33,6 @@ class MoveableObject:
 
 
 
-
 class Player(MoveableObject):
     def __str__(self):
         return "x"
@@ -79,7 +78,7 @@ class GameLoader:
         goals = [tuple(g) for g in data["goals"]]
         width, height = data["dimensions"]
 
-        return player_pos, crates, goals, (width, height)
+        return player_pos, crates, goals, (width, height), self.path
 
 
 
@@ -91,20 +90,15 @@ class Game:
         "d": (1, 0)
     }
 
-    def __init__(self, player_pos: tuple[int, int], crates: list[Crate], goals: list, dimensions: tuple[int, int]):
+    def __init__(self, player_pos: tuple[int, int], crates: list[Crate], goals: list, dimensions: tuple[int, int], level_path: str):
         self.width, self.height = dimensions
         self.player = Player(*player_pos)
         self.crates = crates
         self.goals = goals
+        self.level_path = level_path
 
-        # assemble of board
-        self.board = [[" " for _ in range(self.width)] for _ in range(self.height)]
-        for x, y in self.goals:
-            self.board[y][x] = "+"
-        for crate in self.crates:
-            self.board[crate.y][crate.x] = crate
-
-        self.board[self.player.y][self.player.x] = self.player
+        # assemble the board
+        self.rebuild_board()
 
     def run(self):
         while True:
@@ -115,9 +109,10 @@ class Game:
                 self.handle_move(*self.player.position(), self.DIRECTIONS[user_input])
                 self.rebuild_board()
             elif user_input in ("r", "restart"):
-                print("INFO: Restart not yet implemented.")
+                self.reset()
             elif user_input in ("q", "quit"):
-                print("INFO: Quit is not implemented")
+                print("INFO: Game closed")
+                break
             else:
                 print("INFO: Invalid input.")
 
@@ -171,9 +166,17 @@ class Game:
         for obj in self.crates + [self.player]:
             pos = (obj.x, obj.y)
             if pos in occupied:
-                raise ValueError(f"Conflict at {pos}: multiple objects on one tile!")
+                raise ValueError(f"ERROR: Conflict at {pos}: multiple objects on one tile!")
             occupied.add(pos)
             self.board[obj.y][obj.x] = obj
+    
+    def reset(self):
+        level_data = GameLoader(self.level_path).load_level()
+        if level_data:
+            self.__init__(*level_data)
+            print(f"INFO: Level from {self.level_path} reset")
+        else:
+            print("ERROR: Could not reset level, failed to load data")
 
 
 
