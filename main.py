@@ -179,18 +179,18 @@ class Board:
 player=Player()
 board=Board(input("Insert path to levels file: "),player)
 
-#for _ in board.levels:
-#    board.load_level()
-#    
-#    while not(board.update()):
-#        Board.clear_screen()
-#        print(f"LEVEL: {board.level}")
-#        board.show_board()
-#        if player.input_move() is None:
-#            board.restart_level()
-#
-#    Board.clear_screen()
-#    print("NEXT LEVEL")    
-#    board.show_board()
-#else:
-#    print("WIN")
+for _ in board.levels:
+    board.load_level()
+    
+    while not(board.update()):
+        Board.clear_screen()
+        print(f"LEVEL: {board.level}")
+        board.show_board()
+        if player.input_move() is None:
+            board.restart_level()
+
+    Board.clear_screen()
+    print("NEXT LEVEL")    
+    board.show_board()
+else:
+    print("WIN")
