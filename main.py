@@ -3,6 +3,22 @@ from glob import glob
 from os import path
 
 class MoveableObject:
+    """
+    Abstract base for movable game entities like Player and Crate.
+
+    Attributes:
+        _x (int): X-coordinate (private)
+        _y (int): Y-coordinate (private)
+
+    Properties:
+        x (int): Returns current X-coordinate.
+        y (int): Returns current Y-coordinate.
+        position (tuple[int, int]): Returns current position.
+
+    Methods:
+        move(x, y): Attempts to move to (x, y) if the move is legal.
+    """
+
     def __init__(self, x: int, y: int):
         self._x = x
         self._y = y
@@ -39,12 +55,45 @@ class MoveableObject:
 
 
 class Player(MoveableObject):
+    """
+    Represented by 'x'.
+    Inherits from MoveableObject class
+
+    Attributes:
+        _x (int): X-coordinate (private)
+        _y (int): Y-coordinate (private)
+
+    Properties:
+        x (int): Returns current X-coordinate.
+        y (int): Returns current Y-coordinate.
+        position (tuple[int, int]): Returns current position.
+
+    Methods:
+        move(x, y): Attempts to move to (x, y) if the move is legal.
+    """
+
     def __str__(self):
         return "x"
 
 
 
 class Crate(MoveableObject):
+    """
+    Represents a movable or fixed crate in the game level.
+    
+    Attributes:
+        _x (int): X-coordinate (private)
+        _y (int): Y-coordinate (private)
+
+    Properties:
+        x (int): Returns current X-coordinate.
+        y (int): Returns current Y-coordinate.
+        position (tuple[int, int]): Returns current position.
+
+    Methods:
+        move(x, y): Attempts to move to (x, y) if the move is legal.
+    """
+    
     def __init__(self, x: int, y: int, moveable: bool):
         super().__init__(x, y)
         self.moveable = moveable
@@ -61,42 +110,72 @@ class Crate(MoveableObject):
 
 
 class GameLoader:
+    """
+    Handles loading and provision of level data.
+
+    Automatically locates or prompts for a JSON level file,
+    parses its content, and prepares the game state.
+
+    Raises:
+        ValueError: If the level file cannot be found or parsed.
+    """
+
     def __init__(self):
         self.path = self.get_level_file()
         self.original_data = self.load_level()
+        if self.original_data is None:
+            raise ValueError("Failed to load level")
 
     def load_level(self) -> tuple | None:
         try:
             with open(self.path, "r") as f:
                 level_data = json.load(f)
+            return self.parse_level(level_data)
         except FileNotFoundError:
             print(f"ERROR: File not found. Path '{self.path}' doesn't exist.")
-            return None
         except json.JSONDecodeError as e:
             print(f"ERROR: Failed to parse JSON: {e}")
-            return None
         except Exception as e:
             print(f"ERROR: Unexpected error: {e}")
+        return None
+
+    def parse_level(self, data: json) -> tuple | None:
+        try:
+            player_pos = tuple(data["player"])
+            crates = [Crate(x, y, movable) for x, y, movable in data["crates"]]
+            goals = [tuple(g) for g in data["goals"]]
+            width, height = data["dimensions"]
+        except KeyError as e:
+            print(f"ERROR: Missing field in level data: {e}")
+            return None
+        except Exception as e:
+            print(f"ERROR: Failed to parse level structure: {e}")
             return None
 
         print(f"INFO: Successfully loaded level from {self.path}")
-        return self.parse_level(level_data)
-
-    def parse_level(self, data: json) -> tuple:
-        player_pos = tuple(data["player"])
-        crates = [Crate(x, y, movable) for x, y, movable in data["crates"]]
-        goals = [tuple(g) for g in data["goals"]]
-        width, height = data["dimensions"]
-
         return player_pos, crates, goals, (width, height), self
     
     def get_fresh_level(self) -> tuple[tuple[int, int], list[Crate], list[tuple[int, int]], tuple[int, int], "GameLoader"]:
+        """
+        Returns a fresh copy of the level data for a new game session.
+
+        Returns:
+            tuple: (player_position, cloned_crates, goals, dimensions, self_reference)
+        """
+        
         player, crates, goals, dimensions, self_ref = self.original_data
         crates_clone = [crate.clone() for crate in crates]
         return player, crates_clone, goals, dimensions, self_ref
 
     @staticmethod
     def get_level_file() -> str:
+        """
+        Handles game file extraction and file existance validation.
+
+        Returns:
+            string: Absolute path to valid game file.
+        """
+
         potential_level_files = glob("*.json")
         files_count = len(potential_level_files)
         
@@ -127,6 +206,36 @@ class GameLoader:
 
 
 class Game:
+    """
+    Handles core game loop, state management, and board rendering.
+
+    The Game class is responsible for:
+    - Tracking player, crates, goals, and level dimensions.
+    - Handling movement input, including push mechanics for crates.
+    - Checking for win conditions.
+    - Rendering the board to the console.
+    - Resetting the game from original data.
+
+    Attributes:
+        DIRECTIONS (dict): Allowed movement directions mapped to (dx, dy).
+        width (int): Width of the game board.
+        height (int): Height of the game board.
+        player (Player): Instance representing the player.
+        crates (list[Crate]): List of crate instances (some may be fixed).
+        goals (list[tuple[int, int]]): Coordinates where crates must be moved.
+        board (list[list[object]]): 2D board representation.
+        game_loader (GameLoader): Reference to the GameLoader to enable reset.
+
+    Methods:
+        run(): Starts the game loop, handles user input.
+        handle_move(x, y, direction): Attempts to move a player and possibly push a crate.
+        check_win(): Returns True if all movable crates are on goals.
+        render(): Renders the current board state in the console.
+        rebuild_board(): Refreshes the 2D board from object positions.
+        reset(): Restarts the level from original data.
+    """
+
+    # Maps direction keys to coordinate offsets
     DIRECTIONS = {
         "w": (0, -1),
         "s": (0, 1),
@@ -141,7 +250,7 @@ class Game:
         self.goals = goals
         self.game_loader = game_loader
 
-        # assemble the board
+        # Assemble the board
         self.rebuild_board()
 
     def run(self):
@@ -165,7 +274,19 @@ class Game:
                 self.render()
                 break
 
+    # Check if move is valid and handle crate pushing if necessary
     def handle_move(self, x, y, direction: tuple[int, int]) -> bool:
+        """
+        Handles the logic for attempting to move the player (or pushing a crate).
+
+        Args:
+            x (int): Player's current X position.
+            y (int): Player's current Y position.
+            direction (tuple[int, int]): The (dx, dy) movement vector.
+
+        Returns:
+            bool: True if the move was successful, False otherwise.
+        """
         dx, dy = direction
         x2, y2 = x + dx, y + dy
 
@@ -188,9 +309,11 @@ class Game:
 
         return False
 
+    # True if every goal has a movable crate on it
     def check_win(self):
         return all(goal in [crate.position for crate in self.crates if crate.moveable]  for goal in self.goals)
 
+    # Render the board including player, crates, and goals
     def render(self):
         print("-" * (self.width + 2))
         for row in self.board:
@@ -214,17 +337,19 @@ class Game:
             occupied.add(pos)
             self.board[obj.y][obj.x] = obj
     
+    # Reset the game state by reloading the original data
     def reset(self):
-        if self.game_loader.original_data:
-            self.__init__(*self.game_loader.get_fresh_level())
-            print(f"INFO: Level from {self.game_loader.path} reset")
-        else:
-            print("ERROR: Could not reset level, failed to load data")
+        self.__init__(*self.game_loader.get_fresh_level())
+        print(f"INFO: Level from {self.game_loader.path} reset")
 
 
 
 def main():
-    game_loader = GameLoader()
+    try:
+        game_loader = GameLoader()
+    except ValueError as e:
+        print(f"ERROR: {e}")
+        return
     game = Game(*game_loader.get_fresh_level())
     game.run()
 
