@@ -22,7 +22,7 @@ Immovable crates (`◼`) act as obstacles.
 1. Clone this repository:
 
    ```bash
-   https://github.com/PeterSK-bit/sokoban.git
+   git clone https://github.com/PeterSK-bit/sokoban.git
    cd sokoban
    python main.py
    ```
