@@ -1,4 +1,6 @@
 import json
+from glob import glob
+from os import path
 
 class MoveableObject:
     def __init__(self, x: int, y: int):
@@ -59,8 +61,8 @@ class Crate(MoveableObject):
 
 
 class GameLoader:
-    def __init__(self, path: str):
-        self.path = path
+    def __init__(self):
+        self.path = self.get_level_file()
         self.original_data = self.load_level()
 
     def load_level(self) -> tuple | None:
@@ -77,6 +79,7 @@ class GameLoader:
             print(f"ERROR: Unexpected error: {e}")
             return None
 
+        print(f"INFO: Successfully loaded level from {self.path}")
         return self.parse_level(level_data)
 
     def parse_level(self, data: json) -> tuple:
@@ -91,6 +94,35 @@ class GameLoader:
         player, crates, goals, dimensions, self_ref = self.original_data
         crates_clone = [crate.clone() for crate in crates]
         return player, crates_clone, goals, dimensions, self_ref
+
+    @staticmethod
+    def get_level_file() -> str:
+        potential_level_files = glob("*.json")
+        files_count = len(potential_level_files)
+        
+        if files_count == 1:
+            return path.abspath(potential_level_files[0])
+        elif files_count > 1:
+            print("INFO: Detected multiple potencial game files")
+            for index, file in enumerate(potential_level_files):
+                print(f"{index}: {file}")
+            
+            while True:
+                try:
+                    choice = int(input("Choose one file: "))
+                    if 0 <= choice < files_count:
+                        return path.abspath(potential_level_files[choice])
+                    else:
+                        raise IndexError("Choice index out of the range")
+                except Exception as e:
+                    print(f"ERROR: {e}")
+        else:
+            while True:
+                file = input("INFO: No potential game files found. Enter file path manually:\n> ")
+                if path.exists(file):
+                    return path.abspath(file)
+                else:
+                    print("ERROR: File doesn't exist. Try again.")
 
 
 
@@ -192,7 +224,7 @@ class Game:
 
 
 def main():
-    game_loader = GameLoader("lvl.json")
+    game_loader = GameLoader()
     game = Game(*game_loader.get_fresh_level())
     game.run()
 
