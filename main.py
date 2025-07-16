@@ -13,23 +13,26 @@ class MoveableObject:
     def y(self) -> int:
         return self._y
 
+    @property
     def position(self) -> tuple[int, int]:
         return self._x, self._y
 
-    def move(self, x: int, y: int) -> None:
+    def move(self, x: int, y: int) -> bool:
         dx = abs(x - self._x)
         dy = abs(y - self._y)
 
         if x < 0 or y < 0:
             print(f"Error: Setting negative coordinates is forbidden for {self.__class__.__name__}")
-            return
+            return False
 
         if (dx > 1 or dy > 1) or (dx == 1 and dy == 1):
             print(f"Error: Illegal move - can only move one tile in one direction. Tried ({self._x},{self._y}) -> ({x},{y}) in {self.__class__.__name__}")
-            return
+            return False
 
         self._x = x
         self._y = y
+
+        return True
 
 
 
@@ -49,12 +52,16 @@ class Crate(MoveableObject):
             return "◻"
         else:
             return "◼"
+        
+    def clone(self):
+        return Crate(self._x, self._y, self.moveable)
 
 
 
 class GameLoader:
     def __init__(self, path: str):
         self.path = path
+        self.original_data = self.load_level()
 
     def load_level(self) -> tuple | None:
         try:
@@ -78,7 +85,12 @@ class GameLoader:
         goals = [tuple(g) for g in data["goals"]]
         width, height = data["dimensions"]
 
-        return player_pos, crates, goals, (width, height), self.path
+        return player_pos, crates, goals, (width, height), self
+    
+    def get_fresh_level(self) -> tuple[tuple[int, int], list[Crate], list[tuple[int, int]], tuple[int, int], "GameLoader"]:
+        player, crates, goals, dimensions, self_ref = self.original_data
+        crates_clone = [crate.clone() for crate in crates]
+        return player, crates_clone, goals, dimensions, self_ref
 
 
 
@@ -90,12 +102,12 @@ class Game:
         "d": (1, 0)
     }
 
-    def __init__(self, player_pos: tuple[int, int], crates: list[Crate], goals: list, dimensions: tuple[int, int], level_path: str):
+    def __init__(self, player_pos: tuple[int, int], crates: list[Crate], goals: list, dimensions: tuple[int, int], game_loader: GameLoader):
         self.width, self.height = dimensions
         self.player = Player(*player_pos)
         self.crates = crates
         self.goals = goals
-        self.level_path = level_path
+        self.game_loader = game_loader
 
         # assemble the board
         self.rebuild_board()
@@ -106,7 +118,7 @@ class Game:
             user_input = input("Move: ").lower()
 
             if user_input in self.DIRECTIONS:
-                self.handle_move(*self.player.position(), self.DIRECTIONS[user_input])
+                self.handle_move(*self.player.position, self.DIRECTIONS[user_input])
                 self.rebuild_board()
             elif user_input in ("r", "restart"):
                 self.reset()
@@ -145,7 +157,7 @@ class Game:
         return False
 
     def check_win(self):
-        return all(goal in [crate.position() for crate in self.crates if crate.moveable]  for goal in self.goals)
+        return all(goal in [crate.position for crate in self.crates if crate.moveable]  for goal in self.goals)
 
     def render(self):
         print("-" * (self.width + 2))
@@ -171,10 +183,9 @@ class Game:
             self.board[obj.y][obj.x] = obj
     
     def reset(self):
-        level_data = GameLoader(self.level_path).load_level()
-        if level_data:
-            self.__init__(*level_data)
-            print(f"INFO: Level from {self.level_path} reset")
+        if self.game_loader.original_data:
+            self.__init__(*self.game_loader.get_fresh_level())
+            print(f"INFO: Level from {self.game_loader.path} reset")
         else:
             print("ERROR: Could not reset level, failed to load data")
 
@@ -182,7 +193,7 @@ class Game:
 
 def main():
     game_loader = GameLoader("lvl.json")
-    game = Game(*game_loader.load_level())
+    game = Game(*game_loader.get_fresh_level())
     game.run()
 
 if __name__ == "__main__":
