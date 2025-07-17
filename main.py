@@ -1,6 +1,7 @@
 import json
 from glob import glob
 from os import path
+from string import ascii_letters, digits
 
 class MoveableObject:
     """
@@ -266,6 +267,8 @@ class Game:
             elif user_input in ("q", "quit"):
                 print("INFO: Game closed")
                 break
+            elif user_input in ("s", "save"):
+                self.save()
             else:
                 print("INFO: Invalid input.")
 
@@ -341,6 +344,38 @@ class Game:
     def reset(self):
         self.__init__(*self.game_loader.get_fresh_level())
         print(f"INFO: Level from {self.game_loader.path} reset")
+
+    def save(self):
+        while True:
+            filename = input("Enter filename: ")
+            safe_chars = ascii_letters + digits + "-_."
+            filename = "".join(c for c in filename if c in safe_chars)
+            if filename: break
+            print("INFO: After file name sanitasion filename end up empty, try again")
+
+
+        data = {
+            "player": list(self.player.position),
+            "crates": [(crate.x, crate.y, crate.moveable) for crate in self.crates],
+            "goals": self.goals,
+            "dimensions": [self.width, self.height]
+        }
+
+        # custom data writing because json.dump makes file hard to read
+        with open(filename + ".json", "w") as f:
+            f.write('{\n')
+            f.write(f'  "player": {data["player"]},\n')
+
+            crates = ', '.join(json.dumps(crate) for crate in data["crates"])
+            f.write(f'  "crates": [\n    {crates}\n  ],\n')
+
+            goals = ', '.join(json.dumps(goal) for goal in data["goals"])
+            f.write(f'  "goals": [\n    {goals}\n  ],\n')
+
+            f.write(f'  "dimensions": {data["dimensions"]}\n')
+            f.write('}')
+
+        print(f"INFO: Game state saved to {filename}.json")
 
 
 
